@@ -12,7 +12,8 @@ import {
   Loader2,
   Menu,
   X,
-  LayoutDashboard
+  LayoutDashboard,
+  ChevronDown
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import "leaflet/dist/leaflet.css";
@@ -20,7 +21,6 @@ import "leaflet/dist/leaflet.css";
 import { PDFDownloadLink } from "@react-pdf/renderer";
 import { TeamPDF } from "./TeamPDF";
 
-// 🔥 Dynamic Leaflet (ללא SSR)
 const MapContainer = dynamic(() => import("react-leaflet").then((mod) => mod.MapContainer), { ssr: false });
 const TileLayer = dynamic(() => import("react-leaflet").then((mod) => mod.TileLayer), { ssr: false });
 const Marker = dynamic(() => import("react-leaflet").then((mod) => mod.Marker), { ssr: false });
@@ -35,7 +35,7 @@ export default function MunicipalDashboard() {
   const [teams, setTeams] = useState(3);
   const [loading, setLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const [isSidebarOpen, setSidebarOpen] = useState(false); // למובייל
+  const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [L, setL] = useState<any>(null);
 
   useEffect(() => {
@@ -58,10 +58,12 @@ export default function MunicipalDashboard() {
     if (loading) return;
     setLoading(true);
     try {
-      const res = await fetch(`http://localhost:8000/optimize-routes?budget=${budget}&teams=${teams}`);
+      // שימוש בנתיב יחסי ל-Vercel
+      const res = await fetch(`/api/optimize-routes?budget=${budget}&teams=${teams}`);
+      if (!res.ok) throw new Error("Server Error");
       const result = await res.json();
       setData(result);
-      if (window.innerWidth < 768) setSidebarOpen(false); // סגירת תפריט במובייל לאחר הפקה
+      if (window.innerWidth < 768) setSidebarOpen(false);
     } catch {
       alert("שגיאת תקשורת עם השרת");
     } finally {
@@ -80,8 +82,6 @@ export default function MunicipalDashboard() {
 
   return (
     <div className="flex h-screen bg-[#f1f5f9] text-slate-900 font-sans" dir="rtl">
-      
-      {/* Mobile Toggle */}
       <button 
         onClick={() => setSidebarOpen(!isSidebarOpen)}
         className="lg:hidden fixed top-4 right-4 z-50 p-3 bg-white rounded-2xl shadow-lg border border-slate-200"
@@ -89,25 +89,22 @@ export default function MunicipalDashboard() {
         {isSidebarOpen ? <X size={24} /> : <Menu size={24} />}
       </button>
 
-      {/* Sidebar */}
       <aside className={`
         fixed lg:static inset-y-0 right-0 z-40 w-[320px] bg-white/80 backdrop-blur-xl border-l border-white/20 
         transition-transform duration-300 ease-in-out shadow-2xl p-8 flex flex-col
         ${isSidebarOpen ? "translate-x-0" : "translate-x-full lg:translate-x-0"}
       `}>
-        {/* Header with Logo */}
         <div className="flex items-center gap-3 mb-12">
           <img src="/logo.png" alt="Logo" className="w-10 h-10 object-contain" />
           <div>
             <h1 className="text-xl font-black leading-none">SmartCity</h1>
-            <span className="text-[10px] font-bold text-blue-600 uppercase tracking-tighter">Decision Support System</span>
+            <span className="text-[10px] font-bold text-blue-600 uppercase tracking-tighter text-right block">DSS</span>
           </div>
         </div>
 
         <div className="space-y-8 flex-1">
-          {/* Teams Control */}
           <div className="bg-slate-50 p-4 rounded-3xl border border-slate-100 shadow-inner">
-            <label className="block text-[11px] font-black text-slate-400 uppercase mb-3">מספר צוותים</label>
+            <label className="block text-[11px] font-black text-slate-400 uppercase mb-3 text-right">מספר צוותים</label>
             <div className="flex justify-between items-center bg-white p-2 rounded-2xl shadow-sm">
               <button onClick={() => setTeams(Math.max(1, teams - 1))} className="p-2 hover:bg-slate-50 rounded-lg transition-colors"><Minus size={18}/></button>
               <span className="font-black text-2xl tabular-nums">{teams}</span>
@@ -115,10 +112,9 @@ export default function MunicipalDashboard() {
             </div>
           </div>
 
-          {/* Budget Control */}
           <div className="bg-slate-50 p-4 rounded-3xl border border-slate-100 shadow-inner">
-            <label className="block text-[11px] font-black text-slate-400 uppercase mb-1">תקציב יעד</label>
-            <div className="text-2xl font-black text-blue-600 mb-4 tabular-nums">₪{budget.toLocaleString()}</div>
+            <label className="block text-[11px] font-black text-slate-400 uppercase mb-1 text-right">תקציב יעד</label>
+            <div className="text-2xl font-black text-blue-600 mb-4 tabular-nums text-right">₪{budget.toLocaleString()}</div>
             <input
               type="range" min="10000" max="250000" step="5000" value={budget}
               onChange={(e) => setBudget(Number(e.target.value))}
@@ -131,25 +127,22 @@ export default function MunicipalDashboard() {
             disabled={loading}
             className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-[24px] font-black shadow-lg shadow-blue-200 transition-all active:scale-95 flex justify-center items-center gap-2 group"
           >
-            {loading ? <Loader2 className="animate-spin" /> : <>הפק תוכנית עבודה <LayoutDashboard size={18} className="group-hover:translate-x-[-4px] transition-transform"/></>}
+            {loading ? <Loader2 className="animate-spin" /> : <>הפק תוכנית עבודה <LayoutDashboard size={18} /></>}
           </button>
         </div>
 
-        {/* Footer הקבוע שלך */}
         <div className="pt-8 border-t border-slate-100 flex flex-col items-center gap-3">
           <img src="/logo.png" alt="Footer Logo" className="w-8 opacity-50" />
           <p className="text-[10px] text-slate-400 font-bold text-center leading-relaxed">
-            כל הזכויות שמורות למערכת SmartCity <br /> תמיכה טכנית: 052-5759116
+            כל הזכויות שמורות למערכת SmartCity
           </p>
         </div>
       </aside>
 
-      {/* Main Content */}
-      <main className="flex-1 p-4 lg:p-10 overflow-y-auto custom-scrollbar">
-        {/* KPI Cards */}
+      <main className="flex-1 p-4 lg:p-10 overflow-y-auto">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
           {stats.map((kpi, i) => (
-            <div key={i} className="bg-white/60 backdrop-blur-md p-6 rounded-[32px] border border-white shadow-sm hover:shadow-md transition-all">
+            <div key={i} className="bg-white/60 backdrop-blur-md p-6 rounded-[32px] border border-white shadow-sm text-right">
               <div className="mb-4 bg-white w-10 h-10 rounded-2xl flex items-center justify-center shadow-sm">
                 {kpi.icon}
               </div>
@@ -159,7 +152,6 @@ export default function MunicipalDashboard() {
           ))}
         </div>
 
-        {/* Map Section */}
         <div className="bg-white p-2 rounded-[40px] shadow-2xl border border-white mb-10 h-[350px] lg:h-[500px] overflow-hidden relative">
           {L && (
             <MapContainer center={[31.77, 35.21]} zoom={13} style={{ height: "100%", width: "100%", borderRadius: "34px" }}>
@@ -169,7 +161,7 @@ export default function MunicipalDashboard() {
                   {route.route_steps?.length > 0 && (
                     <Polyline
                       positions={route.route_steps.map((s: any) => [s.lat, s.lon])}
-                      pathOptions={{ color: COLORS[rIdx % COLORS.length], weight: 6, lineCap: 'round', lineJoin: 'round' }}
+                      pathOptions={{ color: COLORS[rIdx % COLORS.length], weight: 6 }}
                     />
                   )}
                   {route.route_steps?.map((step: any) => (
@@ -188,44 +180,37 @@ export default function MunicipalDashboard() {
           )}
         </div>
 
-        {/* Team Detail Cards */}
-        <div className="space-y-8">
-          <h2 className="text-2xl font-black mr-4 flex items-center gap-3">
-            תוכניות עבודה לצוותים <ChevronDown className="text-blue-600 animate-bounce" />
+        <div className="space-y-8 text-right">
+          <h2 className="text-2xl font-black flex items-center gap-3 justify-end">
+             תוכניות עבודה לצוותים <ChevronDown className="text-blue-600" />
           </h2>
           {data?.data?.map((route: any, idx: number) => (
-            <div
-              key={idx}
-              className="bg-white rounded-[40px] shadow-xl border border-slate-100 overflow-hidden flex flex-col md:flex-row transition-transform hover:scale-[1.01]"
-            >
-              <div 
-                className="p-8 md:w-72 flex flex-col justify-between items-start text-white"
-                style={{ backgroundColor: COLORS[idx % COLORS.length] }}
-              >
-                <div>
+            <div key={idx} className="bg-white rounded-[40px] shadow-xl border border-slate-100 overflow-hidden flex flex-col md:flex-row transition-transform hover:scale-[1.01]">
+              <div className="p-8 md:w-72 flex flex-col justify-between items-end text-white" style={{ backgroundColor: COLORS[idx % COLORS.length] }}>
+                <div className="text-right">
                   <h3 className="font-black text-3xl mb-1 italic">צוות {route.team_id}</h3>
-                  <p className="text-xs opacity-80 font-bold uppercase tracking-widest">{route.route_steps?.length} משימות בביצוע</p>
+                  <p className="text-xs opacity-80 font-bold uppercase tracking-widest">{route.route_steps?.length} משימות</p>
                 </div>
                 
                 <PDFDownloadLink
                   document={<TeamPDF team={route} />}
                   fileName={`WorkPlan_Team_${route.team_id}.pdf`}
-                  className="mt-6 w-full bg-white/20 backdrop-blur-md hover:bg-white/40 text-white border border-white/30 px-6 py-4 rounded-2xl font-black text-sm text-center transition-all"
+                  className="mt-6 w-full bg-white/20 backdrop-blur-md hover:bg-white/40 text-white border border-white/30 px-6 py-4 rounded-2xl font-black text-sm text-center"
                 >
                   {({ loading }) => loading ? "מכין קובץ..." : "ייצא תוכנית PDF"}
                 </PDFDownloadLink>
               </div>
 
-              <div className="flex-1 p-8">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="flex-1 p-8 text-right">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 text-right">
                   {route.route_steps?.map((task: any, i: number) => (
-                    <div key={i} className="flex justify-between items-center p-4 rounded-2xl bg-slate-50 border border-slate-100 group hover:bg-blue-50 transition-colors">
-                      <div className="flex flex-col">
-                        <span className="text-[10px] font-black text-slate-400 group-hover:text-blue-400 transition-colors">ID #{task.id}</span>
-                        <span className="font-bold text-slate-700">{task.category}</span>
-                      </div>
-                      <div className="bg-white px-4 py-2 rounded-xl shadow-sm text-green-600 font-black tabular-nums border border-slate-100">
+                    <div key={i} className="flex justify-between items-center p-4 rounded-2xl bg-slate-50 border border-slate-100 group">
+                      <div className="bg-white px-4 py-2 rounded-xl shadow-sm text-green-600 font-black tabular-nums">
                         ₪{Math.round(task.cost).toLocaleString()}
+                      </div>
+                      <div className="flex flex-col text-right">
+                        <span className="text-[10px] font-black text-slate-400">ID #{task.id}</span>
+                        <span className="font-bold text-slate-700">{task.category}</span>
                       </div>
                     </div>
                   ))}
@@ -239,7 +224,6 @@ export default function MunicipalDashboard() {
   );
 }
 
-// קומפוננטה קטנה לעיצוב
 function ChevronDown({className}: {className?: string}) {
   return (
     <svg className={className} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
