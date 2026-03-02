@@ -1,4 +1,5 @@
 fastapi
 sqlalchemy
 psycopg2-binary
-uvicorn
+pandas
+ortools
