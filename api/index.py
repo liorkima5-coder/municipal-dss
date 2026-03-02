@@ -5,20 +5,21 @@ from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import create_engine, text
 
-# ⚡ ה-URL המדויק שלך
-DB_URL = "postgresql://neondb_owner:npg_HPEtW5GAu0gh@ep-damp-waterfall-agn3hn0j-pooler.c-2.eu-central-1.aws.neon.tech/neondb?sslmode=require"
+# ⚡ ב-Vercel, אנחנו משתמשים במשתנה הסביבה שהגדרת בפאנל הניהול.
+# אם הוא לא קיים, הוא ישתמש בכתובת הישירה כברירת מחדל.
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://neondb_owner:npg_HPEtW5GAu0gh@ep-damp-waterfall-agn3hn0j-pooler.c-2.eu-central-1.aws.neon.tech/neondb?sslmode=require")
 
-# יצירת מנוע יציב עם Pool מותאם
+# יצירת מנוע יציב. ב-Serverless מומלץ pool_size קטן יותר כי השרת "קם ונופל"
 engine = create_engine(
-    DB_URL,
-    pool_size=10,
-    max_overflow=20,
+    DATABASE_URL,
+    pool_size=1,
+    max_overflow=0,
     pool_pre_ping=True
 )
 
 app = FastAPI()
 
-# ⚡ קריטי: הגדרת CORS - בלעדיה הדפדפן יחסום את ה-Fetch
+# ⚡ הגדרת CORS פתוחה כדי שהדפדפן ב-Vercel לא יחסום את הבקשה
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"], 
@@ -27,7 +28,8 @@ app.add_middleware(
 )
 
 # --- CACHE LOGIC ---
-CACHE_TTL = 60  # רענון פעם בדקה
+# הערה: ב-Vercel Serverless, ה-Cache הזה יעבוד רק "פר הפעלה".
+CACHE_TTL = 60 
 cached_tasks = []
 last_fetch_time = 0
 cache_lock = threading.Lock()
@@ -55,24 +57,21 @@ def fetch_tasks_from_db():
             "lon": float(r.lon)
         } for r in rows]
     except Exception as e:
-        print(f"❌ שגיאת בסיס נתונים: {e}")
+        print(f"❌ DATABASE ERROR: {e}")
         return []
 
-@app.get("/optimize-routes")
+@app.get("/api/optimize-routes") # הוספנו /api לנתיב כדי להתאים ל-Vercel
 def optimize_routes(budget: float = Query(40000), teams: int = Query(3)):
     global cached_tasks, last_fetch_time
     
     with cache_lock:
         now = time.time()
-        # רענון הקאש רק אם עבר הזמן או שהוא ריק
         if now - last_fetch_time > CACHE_TTL or not cached_tasks:
-            print("DEBUG: מושך נתונים טריים מ-Neon...")
             fresh_data = fetch_tasks_from_db()
             if fresh_data:
                 cached_tasks = fresh_data
                 last_fetch_time = now
 
-    # סינון תקציב בזיכרון (RAM) - מהירות שיא
     selected = []
     current_cost = 0
     for task in cached_tasks:
@@ -81,7 +80,6 @@ def optimize_routes(budget: float = Query(40000), teams: int = Query(3)):
         current_cost += task["cost"]
         selected.append(task)
 
-    # חלוקת Round Robin לצוותים
     teams_data = [{"team_id": i + 1, "route_steps": []} for i in range(teams)]
     for idx, task in enumerate(selected):
         teams_data[idx % teams]["route_steps"].append(task)
@@ -94,11 +92,6 @@ def optimize_routes(budget: float = Query(40000), teams: int = Query(3)):
         "data": teams_data
     }
 
-@app.get("/health")
+@app.get("/api/health")
 def health():
-    return {"status": "ok", "cached_items": len(cached_tasks)}
-
-if __name__ == "__main__":
-    import uvicorn
-    print("🚀 שרת ה-Backend מופעל בכתובת: http://localhost:8000")
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    return {"status": "ok", "env": "production"}
