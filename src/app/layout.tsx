@@ -14,6 +14,12 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Municipal DSS - Optimal Operation",
+  description: "מערכת תומכת החלטה לאופטימיזציה ותפעול עירוני חכם - ליאור קימה",
+  icons: {
+    icon: "/logo.png",      // הלוגו בלשונית הדפדפן
+    apple: "/logo.png",     // הלוגו בשמירה למסך הבית באייפון
+    shortcut: "/logo.png",  // אייקון קיצור דרך
+  },
 
 
 };
