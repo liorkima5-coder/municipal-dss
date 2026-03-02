@@ -1,137 +1,247 @@
 "use client";
-import React, { useState, useEffect } from 'react';
-import { MapPin, Truck, Settings2, BarChart3 } from 'lucide-react';
+
+import React, { useState, useEffect, useCallback, useMemo } from "react";
+import {
+  Settings2,
+  AlertTriangle,
+  Clock,
+  Coins,
+  CheckCircle2,
+  Plus,
+  Minus,
+  Loader2,
+  Menu,
+  X,
+  LayoutDashboard
+} from "lucide-react";
+import dynamic from "next/dynamic";
+import "leaflet/dist/leaflet.css";
+
+import { PDFDownloadLink } from "@react-pdf/renderer";
+import { TeamPDF } from "./TeamPDF";
+
+// 🔥 Dynamic Leaflet (ללא SSR)
+const MapContainer = dynamic(() => import("react-leaflet").then((mod) => mod.MapContainer), { ssr: false });
+const TileLayer = dynamic(() => import("react-leaflet").then((mod) => mod.TileLayer), { ssr: false });
+const Marker = dynamic(() => import("react-leaflet").then((mod) => mod.Marker), { ssr: false });
+const Popup = dynamic(() => import("react-leaflet").then((mod) => mod.Popup), { ssr: false });
+const Polyline = dynamic(() => import("react-leaflet").then((mod) => mod.Polyline), { ssr: false });
+
+const COLORS = ["#2563eb", "#dc2626", "#16a34a", "#ca8a04", "#7c3aed", "#db2777", "#ea580c", "#0891b2", "#4f46e5", "#525252"];
 
 export default function MunicipalDashboard() {
   const [data, setData] = useState<any>(null);
-  const [budget, setBudget] = useState(15000);
+  const [budget, setBudget] = useState(40000);
   const [teams, setTeams] = useState(3);
   const [loading, setLoading] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [isSidebarOpen, setSidebarOpen] = useState(false); // למובייל
+  const [L, setL] = useState<any>(null);
 
-  const fetchOptimization = async () => {
+  useEffect(() => {
+    setMounted(true);
+    if (typeof window !== "undefined") {
+      import("leaflet").then((leaflet) => {
+        const L = leaflet.default;
+        delete (L.Icon.Default.prototype as any)._getIconUrl;
+        L.Icon.Default.mergeOptions({
+          iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
+          iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
+          shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+        });
+        setL(L);
+      });
+    }
+  }, []);
+
+  const fetchOptimization = useCallback(async () => {
+    if (loading) return;
     setLoading(true);
     try {
       const res = await fetch(`http://localhost:8000/optimize-routes?budget=${budget}&teams=${teams}`);
       const result = await res.json();
       setData(result);
-    } catch (e) {
-      console.error("Failed to fetch", e);
+      if (window.innerWidth < 768) setSidebarOpen(false); // סגירת תפריט במובייל לאחר הפקה
+    } catch {
+      alert("שגיאת תקשורת עם השרת");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
-  };
+  }, [budget, teams, loading]);
+
+  const stats = useMemo(() => [
+    { label: "תקציב נוצל", val: `₪${Math.round(data?.summary?.total_cost || 0).toLocaleString()}`, icon: <Coins className="text-blue-500" /> },
+    { label: "משימות", val: data?.summary?.selected_count || 0, icon: <CheckCircle2 className="text-green-500" /> },
+    { label: "SLA צפוי", val: "98.2%", icon: <Clock className="text-purple-500" /> },
+    { label: "מדד סיכון", val: "9.2", icon: <AlertTriangle className="text-amber-500" /> },
+  ], [data]);
+
+  if (!mounted) return null;
 
   return (
-    <div className="flex h-screen bg-gray-900 text-white font-sans">
-      {/* Sidebar - Controls */}
-      <div className="w-80 bg-gray-800 p-6 border-r border-gray-700 flex flex-col gap-6">
-        <div className="flex items-center gap-2 mb-4">
-          <Settings2 className="text-blue-400" />
-          <h1 className="text-xl font-bold">מנוע סימולציה</h1>
+    <div className="flex h-screen bg-[#f1f5f9] text-slate-900 font-sans" dir="rtl">
+      
+      {/* Mobile Toggle */}
+      <button 
+        onClick={() => setSidebarOpen(!isSidebarOpen)}
+        className="lg:hidden fixed top-4 right-4 z-50 p-3 bg-white rounded-2xl shadow-lg border border-slate-200"
+      >
+        {isSidebarOpen ? <X size={24} /> : <Menu size={24} />}
+      </button>
+
+      {/* Sidebar */}
+      <aside className={`
+        fixed lg:static inset-y-0 right-0 z-40 w-[320px] bg-white/80 backdrop-blur-xl border-l border-white/20 
+        transition-transform duration-300 ease-in-out shadow-2xl p-8 flex flex-col
+        ${isSidebarOpen ? "translate-x-0" : "translate-x-full lg:translate-x-0"}
+      `}>
+        {/* Header with Logo */}
+        <div className="flex items-center gap-3 mb-12">
+          <img src="/logo.png" alt="Logo" className="w-10 h-10 object-contain" />
+          <div>
+            <h1 className="text-xl font-black leading-none">SmartCity</h1>
+            <span className="text-[10px] font-bold text-blue-600 uppercase tracking-tighter">Decision Support System</span>
+          </div>
         </div>
 
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm text-gray-400 mb-2">תקציב יומי (₪)</label>
-            <input 
-              type="range" min="5000" max="50000" step="1000"
-              value={budget} onChange={(e) => setBudget(Number(e.target.value))}
-              className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
-            />
-            <div className="text-right mt-1 text-blue-400 font-mono">{budget.toLocaleString()} ₪</div>
+        <div className="space-y-8 flex-1">
+          {/* Teams Control */}
+          <div className="bg-slate-50 p-4 rounded-3xl border border-slate-100 shadow-inner">
+            <label className="block text-[11px] font-black text-slate-400 uppercase mb-3">מספר צוותים</label>
+            <div className="flex justify-between items-center bg-white p-2 rounded-2xl shadow-sm">
+              <button onClick={() => setTeams(Math.max(1, teams - 1))} className="p-2 hover:bg-slate-50 rounded-lg transition-colors"><Minus size={18}/></button>
+              <span className="font-black text-2xl tabular-nums">{teams}</span>
+              <button onClick={() => setTeams(Math.min(10, teams + 1))} className="p-2 hover:bg-slate-50 rounded-lg transition-colors"><Plus size={18}/></button>
+            </div>
           </div>
 
-          <div>
-            <label className="block text-sm text-gray-400 mb-2">מספר צוותים</label>
-            <input 
-              type="number" min="1" max="10"
-              value={teams} onChange={(e) => setTeams(Number(e.target.value))}
-              className="w-full bg-gray-700 border border-gray-600 rounded p-2 focus:ring-2 focus:ring-blue-500 outline-none"
+          {/* Budget Control */}
+          <div className="bg-slate-50 p-4 rounded-3xl border border-slate-100 shadow-inner">
+            <label className="block text-[11px] font-black text-slate-400 uppercase mb-1">תקציב יעד</label>
+            <div className="text-2xl font-black text-blue-600 mb-4 tabular-nums">₪{budget.toLocaleString()}</div>
+            <input
+              type="range" min="10000" max="250000" step="5000" value={budget}
+              onChange={(e) => setBudget(Number(e.target.value))}
+              className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
             />
           </div>
 
-          <button 
+          <button
             onClick={fetchOptimization}
             disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-500 py-3 rounded-lg font-bold transition-all disabled:opacity-50"
+            className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-[24px] font-black shadow-lg shadow-blue-200 transition-all active:scale-95 flex justify-center items-center gap-2 group"
           >
-            {loading ? "מחשב אופטימיזציה..." : "הרץ סימולציה"}
+            {loading ? <Loader2 className="animate-spin" /> : <>הפק תוכנית עבודה <LayoutDashboard size={18} className="group-hover:translate-x-[-4px] transition-transform"/></>}
           </button>
         </div>
 
-        {data && (
-          <div className="mt-8 space-y-4 border-t border-gray-700 pt-6">
-            <div className="flex justify-between items-center">
-              <span className="text-gray-400">משימות שנבחרו</span>
-              <span className="text-xl font-bold text-green-400">{data.summary.selected_count}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-gray-400">ניצול תקציב</span>
-              <span className="text-xl font-bold text-yellow-400">{Math.round(data.summary.total_cost).toLocaleString()} ₪</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-gray-400">מרחק כולל</span>
-              <span className="text-xl font-bold text-purple-400">{data.summary.total_distance_km.toFixed(1)} ק"מ</span>
-            </div>
-          </div>
-        )}
-      </div>
+        {/* Footer הקבוע שלך */}
+        <div className="pt-8 border-t border-slate-100 flex flex-col items-center gap-3">
+          <img src="/logo.png" alt="Footer Logo" className="w-8 opacity-50" />
+          <p className="text-[10px] text-slate-400 font-bold text-center leading-relaxed">
+            כל הזכויות שמורות למערכת SmartCity <br /> תמיכה טכנית: 052-5759116
+          </p>
+        </div>
+      </aside>
 
-      {/* Main Content - Map Placeholder & Route List */}
-      <div className="flex-1 flex flex-col p-8 overflow-hidden">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold flex items-center gap-2">
-            <MapPin className="text-red-500" /> תוכנית עבודה יומית - ירושלים
-          </h2>
-          <div className="bg-gray-800 px-4 py-2 rounded-full border border-gray-700 text-sm flex items-center gap-2">
-            <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-            מחובר ל-Neon DB
-          </div>
+      {/* Main Content */}
+      <main className="flex-1 p-4 lg:p-10 overflow-y-auto custom-scrollbar">
+        {/* KPI Cards */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
+          {stats.map((kpi, i) => (
+            <div key={i} className="bg-white/60 backdrop-blur-md p-6 rounded-[32px] border border-white shadow-sm hover:shadow-md transition-all">
+              <div className="mb-4 bg-white w-10 h-10 rounded-2xl flex items-center justify-center shadow-sm">
+                {kpi.icon}
+              </div>
+              <div className="text-[11px] font-black text-slate-400 uppercase mb-1">{kpi.label}</div>
+              <div className="font-black text-2xl text-slate-800 tabular-nums">{kpi.val}</div>
+            </div>
+          ))}
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full overflow-y-auto">
-          {data?.data.map((route: any, idx: number) => (
-            <div key={idx} className="bg-gray-800 border border-gray-700 rounded-xl p-5 shadow-xl">
-              <div className="flex justify-between items-center mb-4 border-b border-gray-700 pb-3">
-                <div className="flex items-center gap-3">
-                  <div className={`p-2 rounded-lg bg-blue-500/20 text-blue-400`}>
-                    <Truck size={20} />
-                  </div>
-                  <h3 className="font-bold">צוות {route.team_id}</h3>
+        {/* Map Section */}
+        <div className="bg-white p-2 rounded-[40px] shadow-2xl border border-white mb-10 h-[350px] lg:h-[500px] overflow-hidden relative">
+          {L && (
+            <MapContainer center={[31.77, 35.21]} zoom={13} style={{ height: "100%", width: "100%", borderRadius: "34px" }}>
+              <TileLayer url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" />
+              {data?.data?.map((route: any, rIdx: number) => (
+                <React.Fragment key={rIdx}>
+                  {route.route_steps?.length > 0 && (
+                    <Polyline
+                      positions={route.route_steps.map((s: any) => [s.lat, s.lon])}
+                      pathOptions={{ color: COLORS[rIdx % COLORS.length], weight: 6, lineCap: 'round', lineJoin: 'round' }}
+                    />
+                  )}
+                  {route.route_steps?.map((step: any) => (
+                    <Marker key={step.id} position={[step.lat, step.lon]}>
+                      <Popup>
+                        <div className="text-right font-sans">
+                          <div className="font-bold border-b pb-1 mb-1 italic">משימה #{step.id}</div>
+                          <div className="text-xs text-slate-600">{step.category}</div>
+                        </div>
+                      </Popup>
+                    </Marker>
+                  ))}
+                </React.Fragment>
+              ))}
+            </MapContainer>
+          )}
+        </div>
+
+        {/* Team Detail Cards */}
+        <div className="space-y-8">
+          <h2 className="text-2xl font-black mr-4 flex items-center gap-3">
+            תוכניות עבודה לצוותים <ChevronDown className="text-blue-600 animate-bounce" />
+          </h2>
+          {data?.data?.map((route: any, idx: number) => (
+            <div
+              key={idx}
+              className="bg-white rounded-[40px] shadow-xl border border-slate-100 overflow-hidden flex flex-col md:flex-row transition-transform hover:scale-[1.01]"
+            >
+              <div 
+                className="p-8 md:w-72 flex flex-col justify-between items-start text-white"
+                style={{ backgroundColor: COLORS[idx % COLORS.length] }}
+              >
+                <div>
+                  <h3 className="font-black text-3xl mb-1 italic">צוות {route.team_id}</h3>
+                  <p className="text-xs opacity-80 font-bold uppercase tracking-widest">{route.route_steps?.length} משימות בביצוע</p>
                 </div>
-                <span className="text-xs text-gray-500 font-mono">{route.total_distance_meters} מטרים</span>
+                
+                <PDFDownloadLink
+                  document={<TeamPDF team={route} />}
+                  fileName={`WorkPlan_Team_${route.team_id}.pdf`}
+                  className="mt-6 w-full bg-white/20 backdrop-blur-md hover:bg-white/40 text-white border border-white/30 px-6 py-4 rounded-2xl font-black text-sm text-center transition-all"
+                >
+                  {({ loading }) => loading ? "מכין קובץ..." : "ייצא תוכנית PDF"}
+                </PDFDownloadLink>
               </div>
-              
-              <div className="space-y-3">
-                {route.route_steps.map((step: any, sIdx: number) => (
-                  <div key={sIdx} className="flex items-start gap-3 text-sm group">
-                    <div className="flex flex-col items-center">
-                      <div className="w-2 h-2 rounded-full bg-blue-500 mt-1.5 shadow-[0_0_8px_rgba(59,130,246,0.5)]"></div>
-                      {sIdx !== route.route_steps.length - 1 && <div className="w-px h-10 bg-gray-700"></div>}
-                    </div>
-                    <div className="flex-1 bg-gray-700/30 p-3 rounded hover:bg-gray-700/50 transition-colors">
-                      <div className="flex justify-between">
-                        <span className="font-bold">#{step.issue_id} - {step.category}</span>
-                        <span className={`px-2 py-0.5 rounded text-[10px] ${step.severity > 3 ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>
-                          חומרה {step.severity}
-                        </span>
+
+              <div className="flex-1 p-8">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  {route.route_steps?.map((task: any, i: number) => (
+                    <div key={i} className="flex justify-between items-center p-4 rounded-2xl bg-slate-50 border border-slate-100 group hover:bg-blue-50 transition-colors">
+                      <div className="flex flex-col">
+                        <span className="text-[10px] font-black text-slate-400 group-hover:text-blue-400 transition-colors">ID #{task.id}</span>
+                        <span className="font-bold text-slate-700">{task.category}</span>
                       </div>
-                      <div className="text-xs text-gray-500 mt-1 font-mono">
-                        LAT: {step.lat.toFixed(4)}, LON: {step.lon.toFixed(4)}
+                      <div className="bg-white px-4 py-2 rounded-xl shadow-sm text-green-600 font-black tabular-nums border border-slate-100">
+                        ₪{Math.round(task.cost).toLocaleString()}
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             </div>
           ))}
-          {!data && (
-            <div className="col-span-full h-full border-2 border-dashed border-gray-700 rounded-xl flex flex-col items-center justify-center text-gray-500 gap-4">
-              <BarChart3 size={48} />
-              <p>לחץ על "הרץ סימולציה" כדי לקבל תוכנית עבודה אופטימלית</p>
-            </div>
-          )}
         </div>
-      </div>
+      </main>
     </div>
+  );
+}
+
+// קומפוננטה קטנה לעיצוב
+function ChevronDown({className}: {className?: string}) {
+  return (
+    <svg className={className} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
   );
 }
