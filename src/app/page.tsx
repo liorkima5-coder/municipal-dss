@@ -13,7 +13,7 @@ import {
   Menu,
   X,
   LayoutDashboard,
-  ChevronDown
+  ChevronDown // שימוש ב-Chevron הרשמי של הספריה
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import "leaflet/dist/leaflet.css";
@@ -58,7 +58,6 @@ export default function MunicipalDashboard() {
     if (loading) return;
     setLoading(true);
     try {
-      // שימוש בנתיב יחסי ל-Vercel
       const res = await fetch(`/api/optimize-routes?budget=${budget}&teams=${teams}`);
       if (!res.ok) throw new Error("Server Error");
       const result = await res.json();
@@ -98,7 +97,7 @@ export default function MunicipalDashboard() {
           <img src="/logo.png" alt="Logo" className="w-10 h-10 object-contain" />
           <div>
             <h1 className="text-xl font-black leading-none">SmartCity</h1>
-            <span className="text-[10px] font-bold text-blue-600 uppercase tracking-tighter text-right block">DSS</span>
+            <span className="text-[10px] font-bold text-blue-600 uppercase tracking-tighter text-right block italic">DSS</span>
           </div>
         </div>
 
@@ -181,7 +180,7 @@ export default function MunicipalDashboard() {
         </div>
 
         <div className="space-y-8 text-right">
-          <h2 className="text-2xl font-black flex items-center gap-3 justify-end">
+          <h2 className="text-2xl font-black flex items-center gap-3 justify-end text-right">
              תוכניות עבודה לצוותים <ChevronDown className="text-blue-600" />
           </h2>
           {data?.data?.map((route: any, idx: number) => (
@@ -221,11 +220,5 @@ export default function MunicipalDashboard() {
         </div>
       </main>
     </div>
-  );
-}
-
-function ChevronDown({className}: {className?: string}) {
-  return (
-    <svg className={className} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
   );
 }
